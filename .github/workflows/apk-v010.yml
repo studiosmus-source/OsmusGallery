@@ -1,0 +1,384 @@
+name: APK Build v010
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rebuild source and apply v0.10 viewer
+        shell: bash
+        run: |
+          cat ci/v09_exact_00.bin ci/v09_exact_01.bin ci/v09_exact_02.bin ci/v09_exact_03.bin > /tmp/OsmusGallery_v0.9.zip
+          rm -rf project
+          mkdir project
+          unzip -q /tmp/OsmusGallery_v0.9.zip "app/*" "build.gradle.kts" "settings.gradle.kts" "gradle.properties" "gradle/*" -d project
+          cp -a project/. .
+
+          sed -i 's/import androidx.compose.ui.input.pointer.calculatePan/import androidx.compose.foundation.gestures.calculatePan/' app/src/main/java/com/osmus/gallery/ui/ViewerScreen.kt
+          sed -i 's/import androidx.compose.ui.input.pointer.calculateZoom/import androidx.compose.foundation.gestures.calculateZoom/' app/src/main/java/com/osmus/gallery/ui/ViewerScreen.kt
+          sed -i '/vm.onHideFinished(success)/d' app/src/main/java/com/osmus/gallery/MainActivity.kt
+          sed -i 's/"Nascosti"/"VAULT"/g; s/Cassaforte/VAULT/g' app/src/main/java/com/osmus/gallery/ui/GridScreens.kt app/src/main/java/com/osmus/gallery/MainActivity.kt
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path("app/src/main/java/com/osmus/gallery/ui/ViewerScreen.kt")
+          s = p.read_text()
+
+          additions = {
+              "import android.os.Build\n": "import android.os.Build\nimport android.graphics.Bitmap\nimport android.view.TextureView\nimport android.view.ViewGroup\n",
+              "import androidx.compose.foundation.background\n": "import androidx.compose.foundation.background\nimport androidx.compose.foundation.Image\nimport androidx.compose.foundation.shape.CircleShape\n",
+              "import androidx.compose.foundation.gestures.detectTapGestures\n": "import androidx.compose.foundation.gestures.detectTapGestures\nimport androidx.compose.foundation.gestures.detectDragGestures\nimport androidx.compose.foundation.gestures.calculateCentroid\n",
+              "import androidx.compose.foundation.layout.padding\n": "import androidx.compose.foundation.layout.padding\nimport androidx.compose.foundation.layout.size\nimport androidx.compose.foundation.layout.offset\n",
+              "import androidx.compose.material3.Slider\n": "import androidx.compose.material3.Slider\nimport androidx.compose.material3.TextButton\n",
+              "import androidx.compose.ui.graphics.Color\n": "import androidx.compose.ui.graphics.Color\nimport androidx.compose.ui.graphics.asImageBitmap\nimport androidx.compose.ui.graphics.TransformOrigin\nimport androidx.compose.ui.draw.clip\n",
+              "import androidx.compose.ui.layout.ContentScale\n": "import androidx.compose.ui.layout.ContentScale\nimport androidx.compose.ui.layout.onSizeChanged\n",
+              "import androidx.compose.ui.platform.LocalContext\n": "import androidx.compose.ui.platform.LocalContext\nimport androidx.compose.ui.platform.LocalDensity\n",
+              "import androidx.compose.ui.unit.dp\n": "import androidx.compose.ui.unit.dp\nimport androidx.compose.ui.unit.IntOffset\n",
+              "import java.util.Locale\n": "import java.util.Locale\nimport kotlin.math.roundToInt\n",
+          }
+          for a,b in additions.items():
+              s = s.replace(a,b,1)
+
+          video = r'''@Composable
+          private fun VideoPlayer(
+              item: MediaItem,
+              isActive: Boolean,
+              hasPrevious: Boolean,
+              hasNext: Boolean,
+              onPrevious: () -> Unit,
+              onNext: () -> Unit,
+              onTap: () -> Unit,
+          ) {
+              val context = LocalContext.current
+              val density = LocalDensity.current
+              val sourceUri = remember(item.uri, item.localPath) {
+                  if (item.hidden && item.localPath != null) android.net.Uri.fromFile(File(item.localPath)) else item.uri
+              }
+              val player = remember(sourceUri) {
+                  ExoPlayer.Builder(context).build().apply {
+                      setMediaItem(ExoMediaItem.fromUri(sourceUri))
+                      repeatMode = if (item.name.startsWith("OsmusLoop_", ignoreCase = true)) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+                      prepare()
+                  }
+              }
+
+              var textureView by remember { mutableStateOf<TextureView?>(null) }
+              var ratioFrame by remember { mutableStateOf<AspectRatioFrameLayout?>(null) }
+              var playing by remember(player) { mutableStateOf(false) }
+              var position by remember(player) { mutableLongStateOf(0L) }
+              var duration by remember(player) { mutableLongStateOf(item.durationMs.coerceAtLeast(0L)) }
+
+              var lensEnabled by remember(item.id) { mutableStateOf(false) }
+              var lensZoom by remember(item.id) { mutableFloatStateOf(4f) }
+              var lensCenter by remember(item.id) { mutableStateOf(Offset.Zero) }
+              var viewportSize by remember(item.id) { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+              var lensBitmap by remember(item.id) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+
+              val lensDiameter = 190.dp
+              val lensRadiusPx = with(density) { lensDiameter.toPx() / 2f }
+
+              LaunchedEffect(isActive, player) {
+                  if (!isActive) player.pause()
+                  while (isActive) {
+                      playing = player.isPlaying
+                      position = player.currentPosition.coerceAtLeast(0L)
+                      if (player.duration > 0) duration = player.duration
+
+                      val vs = player.videoSize
+                      if (vs.width > 0 && vs.height > 0) {
+                          val ar = (vs.width * vs.pixelWidthHeightRatio) / vs.height.toFloat()
+                          ratioFrame?.setAspectRatio(ar)
+                      }
+                      delay(250)
+                  }
+              }
+
+              LaunchedEffect(lensEnabled, lensZoom, textureView, viewportSize) {
+                  while (lensEnabled) {
+                      val tv = textureView
+                      val vw = viewportSize.width
+                      val vh = viewportSize.height
+                      if (tv != null && tv.isAvailable && vw > 0 && vh > 0) {
+                          val src = tv.bitmap
+                          if (src != null && src.width > 1 && src.height > 1) {
+                              val cxNorm = (lensCenter.x / vw.toFloat()).coerceIn(0f, 1f)
+                              val cyNorm = (lensCenter.y / vh.toFloat()).coerceIn(0f, 1f)
+                              val cropW = (src.width / lensZoom).roundToInt().coerceAtLeast(1)
+                              val cropH = (src.height / lensZoom).roundToInt().coerceAtLeast(1)
+                              val cx = (cxNorm * src.width).roundToInt()
+                              val cy = (cyNorm * src.height).roundToInt()
+                              val left = (cx - cropW / 2).coerceIn(0, (src.width - cropW).coerceAtLeast(0))
+                              val top = (cy - cropH / 2).coerceIn(0, (src.height - cropH).coerceAtLeast(0))
+                              lensBitmap = Bitmap.createBitmap(src, left, top, cropW, cropH).asImageBitmap()
+                          }
+                      }
+                      delay(100)
+                  }
+              }
+
+              DisposableEffect(player) {
+                  onDispose { player.release() }
+              }
+
+              Box(
+                  Modifier
+                      .fillMaxSize()
+                      .background(Color.Black)
+                      .onSizeChanged {
+                          viewportSize = it
+                          if (lensCenter == Offset.Zero) lensCenter = Offset(it.width / 2f, it.height / 2f)
+                      }
+              ) {
+                  AndroidView(
+                      modifier = Modifier.fillMaxSize(),
+                      factory = { ctx ->
+                          AspectRatioFrameLayout(ctx).apply {
+                              resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                              ratioFrame = this
+                              val tv = TextureView(ctx)
+                              addView(
+                                  tv,
+                                  ViewGroup.LayoutParams(
+                                      ViewGroup.LayoutParams.MATCH_PARENT,
+                                      ViewGroup.LayoutParams.MATCH_PARENT,
+                                  ),
+                              )
+                              textureView = tv
+                              player.setVideoTextureView(tv)
+                          }
+                      },
+                      update = { frame ->
+                          ratioFrame = frame
+                          val tv = frame.getChildAt(0) as TextureView
+                          textureView = tv
+                          player.setVideoTextureView(tv)
+                      },
+                  )
+
+                  Box(
+                      Modifier
+                          .fillMaxSize()
+                          .pointerInput(item.id) { detectTapGestures(onTap = { onTap() }) }
+                  )
+
+                  if (lensEnabled) {
+                      lensBitmap?.let { bmp ->
+                          Image(
+                              bitmap = bmp,
+                              contentDescription = "Lente video ${lensZoom.toInt()}x",
+                              contentScale = ContentScale.Crop,
+                              modifier = Modifier
+                                  .offset {
+                                      IntOffset(
+                                          (lensCenter.x - lensRadiusPx).roundToInt(),
+                                          (lensCenter.y - lensRadiusPx).roundToInt(),
+                                      )
+                                  }
+                                  .size(lensDiameter)
+                                  .clip(CircleShape)
+                                  .background(Color.Black)
+                                  .pointerInput(item.id, lensZoom) {
+                                      detectDragGestures { change, drag ->
+                                          change.consume()
+                                          val maxX = viewportSize.width.toFloat()
+                                          val maxY = viewportSize.height.toFloat()
+                                          lensCenter = Offset(
+                                              (lensCenter.x + drag.x).coerceIn(
+                                                  lensRadiusPx,
+                                                  (maxX - lensRadiusPx).coerceAtLeast(lensRadiusPx)
+                                              ),
+                                              (lensCenter.y + drag.y).coerceIn(
+                                                  lensRadiusPx,
+                                                  (maxY - lensRadiusPx).coerceAtLeast(lensRadiusPx)
+                                              ),
+                                          )
+                                      }
+                                  },
+                          )
+                      }
+
+                      Row(
+                          Modifier
+                              .align(Alignment.TopCenter)
+                              .background(Color.Black.copy(alpha = 0.62f))
+                              .padding(horizontal = 4.dp),
+                          verticalAlignment = Alignment.CenterVertically,
+                      ) {
+                          listOf(2f, 4f, 8f, 16f, 32f).forEach { z ->
+                              TextButton(onClick = { lensZoom = z }) {
+                                  Text("${z.toInt()}×", color = if (lensZoom == z) Color.White else Color.Gray)
+                              }
+                          }
+                      }
+                  }
+
+                  Column(
+                      Modifier
+                          .align(Alignment.BottomCenter)
+                          .fillMaxWidth()
+                          .background(Color.Black.copy(alpha = 0.62f))
+                          .padding(horizontal = 14.dp, vertical = 8.dp),
+                  ) {
+                      val max = duration.coerceAtLeast(1L).toFloat()
+                      Slider(
+                          value = position.coerceAtMost(duration.coerceAtLeast(1L)).toFloat(),
+                          onValueChange = { position = it.toLong() },
+                          onValueChangeFinished = { player.seekTo(position) },
+                          valueRange = 0f..max,
+                      )
+                      Row(
+                          Modifier.fillMaxWidth(),
+                          verticalAlignment = Alignment.CenterVertically,
+                          horizontalArrangement = Arrangement.SpaceBetween,
+                      ) {
+                          Text("${formatTime(position)} / ${formatTime(duration)}", color = Color.White, fontSize = 12.sp)
+                          Row(verticalAlignment = Alignment.CenterVertically) {
+                              TextButton(onClick = { lensEnabled = !lensEnabled }) {
+                                  Text(if (lensEnabled) "Lente OFF" else "Lente", color = Color.White)
+                              }
+                              IconButton(onClick = onPrevious, enabled = hasPrevious) {
+                                  Icon(Icons.Filled.SkipPrevious, "Precedente", tint = if (hasPrevious) Color.White else Color.Gray)
+                              }
+                              IconButton(onClick = {
+                                  if (player.isPlaying) player.pause() else player.play()
+                                  playing = player.isPlaying
+                              }) {
+                                  Icon(
+                                      if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                      if (playing) "Pausa" else "Riproduci",
+                                      tint = Color.White
+                                  )
+                              }
+                              IconButton(onClick = onNext, enabled = hasNext) {
+                                  Icon(Icons.Filled.SkipNext, "Successivo", tint = if (hasNext) Color.White else Color.Gray)
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+          '''
+
+          s = re.sub(
+              r'@Composable\nprivate fun VideoPlayer\(.*?\n\}\n\n@Composable\nprivate fun ZoomableImage',
+              video + '\n@Composable\nprivate fun ZoomableImage',
+              s,
+              count=1,
+              flags=re.S,
+          )
+
+          s = s.replace(
+              '    var offset by remember(item.id) { mutableStateOf(Offset.Zero) }\n',
+              '    var offset by remember(item.id) { mutableStateOf(Offset.Zero) }\n'
+              '    var imageViewport by remember(item.id) { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }\n',
+              1,
+          )
+
+          s = s.replace(
+              '            .fillMaxSize()\n            .pointerInput(item.id) {\n                detectTapGestures(',
+              '            .fillMaxSize()\n            .onSizeChanged { imageViewport = it }\n'
+              '            .pointerInput(item.id) {\n                detectTapGestures(',
+              1,
+          )
+
+          s = s.replace(
+              '''                        } else {
+                            scale = 4f
+                        }''',
+              '''                        } else {
+                            scale = 4f
+                            val c = Offset(imageViewport.width / 2f, imageViewport.height / 2f)
+                            offset = c - c * scale
+                        }''',
+              1,
+          )
+
+          old = '''            .pointerInput(item.id, scale) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent(PointerEventPass.Main)
+                        val pressedCount = event.changes.count { it.pressed }
+                        // A scala 1 un solo dito NON viene consumato: lo swipe passa al pager.
+                        if (pressedCount >= 2 || scale > 1f) {
+                            val zoom = event.calculateZoom()
+                            val pan = event.calculatePan()
+                            scale = (scale * zoom).coerceIn(1f, 16f)
+                            offset = if (scale > 1f) offset + pan else Offset.Zero
+                            event.changes.forEach { it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
+                }
+            }'''
+
+          new = '''            .pointerInput(item.id) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent(PointerEventPass.Main)
+                        val pressedCount = event.changes.count { it.pressed }
+                        if (pressedCount >= 2 || scale > 1f) {
+                            val zoom = event.calculateZoom()
+                            val pan = event.calculatePan()
+                            val centroid = event.calculateCentroid(useCurrent = true)
+                            val oldScale = scale
+                            val newScale = (oldScale * zoom).coerceIn(1f, 32f)
+                            val factor = if (oldScale > 0f) newScale / oldScale else 1f
+                            offset = if (newScale > 1f) {
+                                centroid - (centroid - offset) * factor + pan
+                            } else Offset.Zero
+                            scale = newScale
+                            event.changes.forEach { it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
+                    if (scale <= 1.12f) {
+                        scale = 1f
+                        offset = Offset.Zero
+                    }
+                }
+            }'''
+
+          if old not in s:
+              raise SystemExit("Original zoom block not found")
+          s = s.replace(old, new, 1)
+
+          s = s.replace(
+              '                        translationY = offset.y,\n                    ),',
+              '                        translationY = offset.y,\n'
+              '                        transformOrigin = TransformOrigin(0f, 0f),\n'
+              '                    ),',
+          )
+
+          p.write_text(s)
+
+          g = Path("app/build.gradle.kts")
+          t = g.read_text()
+          t = re.sub(r'versionCode\s*=\s*\d+', 'versionCode = 10', t)
+          t = re.sub(r'versionName\s*=\s*"[^"]+"', 'versionName = "0.10.0"', t)
+          g.write_text(t)
+          PY
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        run: gradle :app:assembleDebug --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OsmusGallery-v0.10.0-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

@@ -306,18 +306,26 @@ jobs:
                     do {
                         val event = awaitPointerEvent(PointerEventPass.Main)
                         val pressedCount = event.changes.count { it.pressed }
-                        if (pressedCount >= 2 || scale > 1f) {
-                            val zoom = event.calculateZoom()
+                        if (pressedCount > 0 && (pressedCount >= 2 || scale > 1f)) {
+                            val zoom = if (pressedCount >= 2) event.calculateZoom() else 1f
                             val pan = event.calculatePan()
                             val centroid = event.calculateCentroid(useCurrent = true)
                             val oldScale = scale
                             val newScale = (oldScale * zoom).coerceIn(1f, 32f)
                             val factor = if (oldScale > 0f) newScale / oldScale else 1f
+                            val rawOffset = if (newScale > 1f) {
+                                centroid - (centroid - offset) * factor + (pan * factor)
+                            } else Offset.Zero
+                            val minX = -imageViewport.width.toFloat() * (newScale - 1f)
+                            val minY = -imageViewport.height.toFloat() * (newScale - 1f)
                             offset = if (newScale > 1f) {
-                                centroid - (centroid - offset) * factor + pan
+                                Offset(
+                                    rawOffset.x.coerceIn(minX, 0f),
+                                    rawOffset.y.coerceIn(minY, 0f),
+                                )
                             } else Offset.Zero
                             scale = newScale
-                            event.changes.forEach { it.consume() }
+                            event.changes.forEach { if (it.pressed) it.consume() }
                         }
                     } while (event.changes.any { it.pressed })
                     if (scale <= 1.12f) {
@@ -344,7 +352,7 @@ jobs:
           g = Path("app/build.gradle.kts")
           t = g.read_text()
           t = re.sub(r'versionCode\s*=\s*\d+', 'versionCode = 10', t)
-          t = re.sub(r'versionName\s*=\s*"[^"]+"', 'versionName = "0.10.0"', t)
+          t = re.sub(r'versionName\s*=\s*"[^"]+"', 'versionName = "0.10.6"', t)
           g.write_text(t)
           PY
 
@@ -362,6 +370,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OsmusGallery-v0.10.5-debug-apk
+          name: OsmusGallery-v0.10.6-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

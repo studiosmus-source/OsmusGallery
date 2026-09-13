@@ -10,19 +10,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Extract base project
+      - name: Rebuild exact v0.9 project
         shell: bash
         run: |
-          rm -rf rebuilt
-          unzip -q OsmusGallery_v0.5.1_compilefix.zip -d rebuilt
-          cp -a rebuilt/. .
-
-      - name: Rebuild and apply v0.9 patch
-        shell: bash
-        run: |
-          cat ci/v09_bin_00 ci/v09_bin_01 > /tmp/v09_patch.zip
-          unzip -t /tmp/v09_patch.zip
-          unzip -qo /tmp/v09_patch.zip -d .
+          cat ci/v09_exact_00.bin ci/v09_exact_01.bin ci/v09_exact_02.bin ci/v09_exact_03.bin > /tmp/OsmusGallery_v0.9.zip
+          test "$(wc -c < /tmp/OsmusGallery_v0.9.zip)" -eq 52913
+          unzip -t /tmp/OsmusGallery_v0.9.zip
+          rm -rf project
+          mkdir project
+          unzip -q /tmp/OsmusGallery_v0.9.zip -d project
+          cp -a project/. .
 
       - uses: actions/setup-java@v4
         with:
@@ -38,6 +35,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OsmusGallery-v0.9.2-debug-apk
+          name: OsmusGallery-v0.9.3-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

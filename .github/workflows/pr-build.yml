@@ -9,21 +9,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Rebuild source tree
+
+      - name: Extract project
         shell: bash
         run: |
-          base64 -d project.b64 > OsmusGallery.zip
-          unzip -q OsmusGallery.zip -d rebuilt
+          unzip -q OsmusGallery_v0.4_vault_guard.zip -d rebuilt
           cp -a rebuilt/. .
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
+
       - uses: actions/upload-artifact@v4
         with:
           name: OsmusGallery-debug-apk

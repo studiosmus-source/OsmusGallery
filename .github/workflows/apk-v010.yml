@@ -300,19 +300,25 @@ jobs:
               1,
           )
 
-          pat = re.compile(r'''\s*\.pointerInput\(item\.id,\s*scale\)\s*\{\s*
-                awaitEachGesture\s*\{\s*
-                    awaitFirstDown\(requireUnconsumed\s*=\s*false\)\s*
-                    do\s*\{\s*
-                        val event = awaitPointerEvent\(PointerEventPass\.Main\)\s*
-                        val pressedCount = event\.changes\.count\s*\{\s*it\.pressed\s*\}\s*
-                        .*?
-                    \}\s*while\s*\(event\.changes\.any\s*\{\s*it\.pressed\s*\}\)\s*
-                \}\s*
-            \}''', re.S | re.X)
+          old = '''            .pointerInput(item.id, scale) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent(PointerEventPass.Main)
+                        val pressedCount = event.changes.count { it.pressed }
+                        // A scala 1 un solo dito NON viene consumato: lo swipe passa al pager.
+                        if (pressedCount >= 2 || scale > 1f) {
+                            val zoom = event.calculateZoom()
+                            val pan = event.calculatePan()
+                            scale = (scale * zoom).coerceIn(1f, 16f)
+                            offset = if (scale > 1f) offset + pan else Offset.Zero
+                            event.changes.forEach { it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
+                }
+            }'''
 
-          new = '''
-            .pointerInput(item.id) {
+          new = '''            .pointerInput(item.id) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
                     do {
@@ -338,9 +344,10 @@ jobs:
                     }
                 }
             }'''
-          s, n = pat.subn(new, s, count=1)
-          if n != 1:
-              raise SystemExit(f"Zoom block replacements: {n}")
+
+          if old not in s:
+              raise SystemExit("Exact original zoom block not found")
+          s = s.replace(old, new, 1)
 
           s = s.replace(
               '                        translationY = offset.y,\n                    ),',
@@ -372,6 +379,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OsmusGallery-v0.10.1-debug-apk
+          name: OsmusGallery-v0.10.2-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

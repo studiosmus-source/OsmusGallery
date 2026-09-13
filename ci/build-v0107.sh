@@ -349,29 +349,20 @@ p.write_text(s)
 gp = Path("app/src/main/java/com/osmus/gallery/ui/GridScreens.kt")
 gs = gp.read_text()
 
-old_header = '''    Column(Modifier.fillMaxSize()) {
-        Row(
-  Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-  verticalAlignment = Alignment.CenterVertically,
-        ) {
-  Column(Modifier.weight(1f)) {
-      Text("Galleria", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-      Text(
-          "$totalCount elementi in ${albums.size} cartelle",
-          color = Color(0xFF9A9A97), fontSize = 13.sp,
-      )
-  }
-  IconButton(onClick = onOpenTools) {
-      Icon(Icons.Filled.MovieCreation, contentDescription = "Crea clip animata")
-  }
-  IconButton(onClick = onOpenDuplicates) {
-      Icon(Icons.Filled.ContentCopy, contentDescription = "Cerca duplicati")
-  }
-        }
-
-        LazyVerticalGrid('''
-
-new_header = '''    var albumSortMenu by remember { mutableStateOf(false) }
+albums_fn = r'''@Composable
+fun AlbumsScreen(
+    albums: List<Album>,
+    columns: Int,
+    onOpenAlbum: (Long) -> Unit,
+    onOpenAll: () -> Unit,
+    onOpenDuplicates: () -> Unit,
+    onOpenTools: () -> Unit,
+    onOpenHidden: () -> Unit,
+    onHideAlbum: (Album) -> Unit,
+    totalCount: Int,
+    hiddenCount: Int,
+) {
+    var albumSortMenu by remember { mutableStateOf(false) }
     var albumSort by remember { mutableStateOf("recenti") }
 
     val shownAlbums = when (albumSort) {
@@ -385,166 +376,169 @@ new_header = '''    var albumSortMenu by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         Row(
-  Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-  verticalAlignment = Alignment.CenterVertically,
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-  Column(Modifier.weight(1f)) {
-      Text("Galleria", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-      Text(
-          "$totalCount elementi in ${albums.size} cartelle",
-          color = Color(0xFF9A9A97), fontSize = 13.sp,
-      )
-  }
-  Box {
-      IconButton(onClick = { albumSortMenu = true }) {
-          Icon(Icons.Filled.Sort, contentDescription = "Ordina cartelle")
-      }
-      DropdownMenu(expanded = albumSortMenu, onDismissRequest = { albumSortMenu = false }) {
-          listOf(
-              "recenti" to "Più recenti",
-              "vecchie" to "Meno recenti",
-              "nome_az" to "Nome A→Z",
-              "nome_za" to "Nome Z→A",
-              "piu" to "Più elementi",
-              "meno" to "Meno elementi",
-          ).forEach { (key, label) ->
-              DropdownMenuItem(
-                  text = {
-                      Text(
-                          label,
-                          fontWeight = if (albumSort == key) FontWeight.Bold else FontWeight.Normal,
-                      )
-                  },
-                  onClick = {
-                      albumSort = key
-                      albumSortMenu = false
-                  },
-              )
-          }
-      }
-  }
-  IconButton(onClick = onOpenTools) {
-      Icon(Icons.Filled.MovieCreation, contentDescription = "Crea clip animata")
-  }
-  IconButton(onClick = onOpenDuplicates) {
-      Icon(Icons.Filled.ContentCopy, contentDescription = "Cerca duplicati")
-  }
+            Column(Modifier.weight(1f)) {
+                Text("Galleria", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "$totalCount elementi in \${albums.size} cartelle",
+                    color = Color(0xFF9A9A97), fontSize = 13.sp,
+                )
+            }
+            Box {
+                IconButton(onClick = { albumSortMenu = true }) {
+                    Icon(Icons.Filled.Sort, contentDescription = "Ordina cartelle")
+                }
+                DropdownMenu(expanded = albumSortMenu, onDismissRequest = { albumSortMenu = false }) {
+                    listOf(
+                        "recenti" to "Più recenti",
+                        "vecchie" to "Meno recenti",
+                        "nome_az" to "Nome A→Z",
+                        "nome_za" to "Nome Z→A",
+                        "piu" to "Più elementi",
+                        "meno" to "Meno elementi",
+                    ).forEach { (key, label) ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    label,
+                                    fontWeight = if (albumSort == key) FontWeight.Bold else FontWeight.Normal,
+                                )
+                            },
+                            onClick = {
+                                albumSort = key
+                                albumSortMenu = false
+                            },
+                        )
+                    }
+                }
+            }
+            IconButton(onClick = onOpenTools) {
+                Icon(Icons.Filled.MovieCreation, contentDescription = "Crea clip animata")
+            }
+            IconButton(onClick = onOpenDuplicates) {
+                Icon(Icons.Filled.ContentCopy, contentDescription = "Cerca duplicati")
+            }
         }
 
-        LazyVerticalGrid('''
-
-if old_header not in gs:
-    raise SystemExit("Albums header block not found")
-gs = gs.replace(old_header, new_header, 1)
-gs = gs.replace('items(albums, key = { it.bucketId }) { album ->', 'items(shownAlbums, key = { it.bucketId }) { album ->', 1)
-gs = gs.replace('title = "Nascosti"', 'title = "VAULT"', 1)
-gs = gs.replace('Icon(Icons.Filled.VisibilityOff, "Nascosti", tint = Color.White)', 'Icon(Icons.Filled.VisibilityOff, "VAULT", tint = Color.White)', 1)
-
-old_tile = '''    var menuOpen by remember { mutableStateOf(false) }
-    Column(Modifier.clip(RoundedCornerShape(10.dp)).combinedClickable(onClick = onClick)) {
-        Box(
-  Modifier.fillMaxWidth().aspectRatio(1f).background(Color(0xFF1A1B1D))
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(columns.coerceIn(2, 4)),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-  if (cover != null) {
-      AsyncImage(
-          model = cover, contentDescription = title, contentScale = ContentScale.Crop,
-          modifier = Modifier.fillMaxSize(),
-      )
-  }
-  if (badgeIcon != null) {
-      Box(Modifier.align(Alignment.Center)) { badgeIcon() }
-  }
-  if (menuItems.isNotEmpty()) {
-      Box(Modifier.align(Alignment.TopEnd)) {
-          IconButton(onClick = { menuOpen = true }) {
-              Icon(Icons.Filled.MoreVert, "Menu", tint = Color.White)
-          }
-          DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-              menuItems.forEach { (label, action) ->
-                  DropdownMenuItem(text = { Text(label) }, onClick = {
-                      menuOpen = false
-                      action()
-                  })
-              }
-          }
-      }
-  }
+            item {
+                AlbumTile(
+                    title = "Tutti gli elementi", count = totalCount,
+                    cover = shownAlbums.firstOrNull()?.cover, onClick = onOpenAll,
+                )
+            }
+            item {
+                AlbumTile(
+                    title = "VAULT", count = hiddenCount,
+                    cover = null, onClick = onOpenHidden,
+                    badgeIcon = { Icon(Icons.Filled.VisibilityOff, "VAULT", tint = Color.White) },
+                )
+            }
+            items(shownAlbums, key = { it.bucketId }) { album ->
+                AlbumTile(
+                    title = album.name,
+                    count = album.count,
+                    cover = album.cover,
+                    onClick = { onOpenAlbum(album.bucketId) },
+                    menuItems = listOf("Nascondi cartella" to { onHideAlbum(album) }),
+                )
+            }
         }
-        Text(title, maxLines = 1, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-  modifier = Modifier.padding(start = 4.dp, top = 6.dp))
-        Text("$count", fontSize = 11.sp, color = Color(0xFF8A8A88),
-  modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
-    }'''
+    }
+}
+'''
 
-new_tile = '''    var menuOpen by remember { mutableStateOf(false) }
+a0 = gs.index("@Composable\nfun AlbumsScreen(")
+a1 = gs.index("\n@Composable\nfun HiddenAlbumsScreen(", a0)
+gs = gs[:a0] + albums_fn + gs[a1:]
+
+album_tile_fn = r'''@Composable
+private fun AlbumTile(
+    title: String,
+    count: Int,
+    cover: android.net.Uri?,
+    onClick: () -> Unit,
+    menuItems: List<Pair<String, () -> Unit>> = emptyList(),
+    badgeIcon: (@Composable () -> Unit)? = null,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
     Column(
         Modifier
-  .padding(3.dp)
-  .clip(RoundedCornerShape(16.dp))
-  .background(Color(0xFF18191B))
-  .combinedClickable(onClick = onClick)
-  .padding(bottom = 9.dp)
+            .padding(3.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF18191B))
+            .combinedClickable(onClick = onClick)
+            .padding(bottom = 9.dp)
     ) {
         Box(
-  Modifier
-      .fillMaxWidth()
-      .aspectRatio(1.08f)
-      .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-      .background(Color(0xFF242528))
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(1.08f)
+                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                .background(Color(0xFF242528))
         ) {
-  if (cover != null) {
-      AsyncImage(
-          model = cover,
-          contentDescription = title,
-          contentScale = ContentScale.Crop,
-          modifier = Modifier.fillMaxSize(),
-      )
-  }
-  if (badgeIcon != null) {
-      Box(
-          Modifier
-              .align(Alignment.Center)
-              .clip(RoundedCornerShape(999.dp))
-              .background(Color.Black.copy(alpha = 0.45f))
-              .padding(12.dp)
-      ) { badgeIcon() }
-  }
-  if (menuItems.isNotEmpty()) {
-      Box(Modifier.align(Alignment.TopEnd)) {
-          IconButton(onClick = { menuOpen = true }) {
-              Icon(Icons.Filled.MoreVert, "Menu", tint = Color.White)
-          }
-          DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-              menuItems.forEach { (label, action) ->
-                  DropdownMenuItem(text = { Text(label) }, onClick = {
-                      menuOpen = false
-                      action()
-                  })
-              }
-          }
-      }
-  }
+            if (cover != null) {
+                AsyncImage(
+                    model = cover,
+                    contentDescription = title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            if (badgeIcon != null) {
+                Box(
+                    Modifier
+                        .align(Alignment.Center)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Color.Black.copy(alpha = 0.45f))
+                        .padding(12.dp)
+                ) { badgeIcon() }
+            }
+            if (menuItems.isNotEmpty()) {
+                Box(Modifier.align(Alignment.TopEnd)) {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Filled.MoreVert, "Menu", tint = Color.White)
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        menuItems.forEach { (label, action) ->
+                            DropdownMenuItem(text = { Text(label) }, onClick = {
+                                menuOpen = false
+                                action()
+                            })
+                        }
+                    }
+                }
+            }
         }
         Text(
-  title,
-  maxLines = 1,
-  fontSize = 14.sp,
-  fontWeight = FontWeight.SemiBold,
-  modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 9.dp),
+            title,
+            maxLines = 1,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 9.dp),
         )
         Text(
-  if (count == 1) "1 elemento" else "$count elementi",
-  fontSize = 11.sp,
-  color = Color(0xFF9A9A97),
-  modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 2.dp),
+            if (count == 1) "1 elemento" else "$count elementi",
+            fontSize = 11.sp,
+            color = Color(0xFF9A9A97),
+            modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 2.dp),
         )
-    }'''
+    }
+}
+'''
 
-if old_tile not in gs:
-    raise SystemExit("AlbumTile block not found")
-gs = gs.replace(old_tile, new_tile, 1)
+t0 = gs.index("@Composable\nprivate fun AlbumTile(")
+t1 = gs.index("\n@Composable\nfun PhotoGridScreen(", t0)
+gs = gs[:t0] + album_tile_fn + gs[t1:]
 gp.write_text(gs)
-
 
 g = Path("app/build.gradle.kts")
 t = g.read_text()

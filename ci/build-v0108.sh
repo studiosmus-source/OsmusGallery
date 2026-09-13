@@ -895,3 +895,5 @@ t = re.sub(r'versionName\s*=\s*"[^"]+"', 'versionName = "0.10.8"', t)
 g.write_text(t)
 PY
 
+
+# trigger v0.10.8 verification

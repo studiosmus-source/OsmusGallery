@@ -33,3 +33,5 @@ jobs:
           name: OsmusGallery-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+# verify v0.4 build

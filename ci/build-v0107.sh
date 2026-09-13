@@ -547,3 +547,5 @@ t = re.sub(r'versionName\s*=\s*"[^"]+"', 'versionName = "0.10.7"', t)
 g.write_text(t)
 PY
 
+
+# trigger fixed v0.10.7

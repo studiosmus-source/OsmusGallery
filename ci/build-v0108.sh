@@ -548,6 +548,31 @@ gp.write_text(gs)
 # v0.10.8: physical move support, looping video/back behavior, and ghost-row filtering.
 gp = Path("app/src/main/java/com/osmus/gallery/ui/GridScreens.kt")
 gs = gp.read_text()
+
+# Add physical-move action to the media grid after the v0.10.7 UI has been generated.
+gs = gs.replace(
+    '''    onToggleSelect: (Long) -> Unit,
+    onHideSelected: () -> Unit = {},''',
+    '''    onToggleSelect: (Long) -> Unit,
+    onMoveSelected: () -> Unit = {},
+    onHideSelected: () -> Unit = {},''',
+    1,
+)
+gs = gs.replace(
+    '''            if (selection.isNotEmpty()) {
+                IconButton(onClick = if (hiddenMode) onRestoreSelected else onHideSelected) {''',
+    '''            if (selection.isNotEmpty()) {
+                if (!hiddenMode) {
+                    IconButton(onClick = onMoveSelected) {
+                        Icon(Icons.Filled.DriveFileMove, contentDescription = "Sposta")
+                    }
+                }
+                IconButton(onClick = if (hiddenMode) onRestoreSelected else onHideSelected) {''',
+    1,
+)
+if "onMoveSelected: () -> Unit = {}" not in gs:
+    raise SystemExit("PhotoGridScreen move hook was not applied")
+
 if "import androidx.compose.material.icons.filled.DriveFileMove\n" not in gs:
     gs = gs.replace(
         "import androidx.compose.material.icons.filled.ContentCopy\n",

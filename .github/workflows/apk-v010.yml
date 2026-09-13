@@ -300,7 +300,7 @@ jobs:
               1,
           )
 
-          old = '''            .pointerInput(item.id, scale) {
+          old = '''            .pointerInput(item.id) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
                     do {
@@ -379,6 +379,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OsmusGallery-v0.10.2-debug-apk
+          name: OsmusGallery-v0.10.3-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

@@ -23,6 +23,36 @@ jobs:
           sed -i 's/import androidx.compose.ui.input.pointer.calculateZoom/import androidx.compose.foundation.gestures.calculateZoom/' app/src/main/java/com/osmus/gallery/ui/ViewerScreen.kt
           sed -i '/vm.onHideFinished(success)/d' app/src/main/java/com/osmus/gallery/MainActivity.kt
           sed -i 's/\.pointerInput(item.id, scale)/.pointerInput(item.id)/' app/src/main/java/com/osmus/gallery/ui/ViewerScreen.kt
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/osmus/gallery/ui/ViewerScreen.kt")
+          s = p.read_text()
+          s = s.replace("coerceIn(1f, 16f)", "coerceIn(1f, 32f)")
+          old = """                    } while (event.changes.any { it.pressed })
+                }
+            }"""
+          new = """                    } while (event.changes.any { it.pressed })
+                    if (scale <= 1.15f) {
+                        scale = 1f
+                        offset = Offset.Zero
+                    }
+                }
+            }"""
+          if old not in s:
+              raise SystemExit("Viewer gesture block not found")
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          for rel in [
+              "app/src/main/java/com/osmus/gallery/ui/GridScreens.kt",
+              "app/src/main/java/com/osmus/gallery/MainActivity.kt",
+          ]:
+              p = Path(rel)
+              s = p.read_text()
+              s = s.replace('"Nascosti"', '"VAULT"')
+              s = s.replace("Cassaforte", "VAULT")
+              p.write_text(s)
+          PY
 
       - uses: actions/setup-java@v4
         with:
@@ -38,6 +68,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OsmusGallery-v0.9.6-debug-apk
+          name: OsmusGallery-v0.9.7-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

@@ -204,19 +204,6 @@ jobs:
                           )
                       }
 
-                      Row(
-                          Modifier
-                              .align(Alignment.TopCenter)
-                              .background(Color.Black.copy(alpha = 0.62f))
-                              .padding(horizontal = 4.dp),
-                          verticalAlignment = Alignment.CenterVertically,
-                      ) {
-                          listOf(2f, 4f, 8f, 16f, 32f).forEach { z ->
-                              TextButton(onClick = { lensZoom = z }) {
-                                  Text("${z.toInt()}×", color = if (lensZoom == z) Color.White else Color.Gray)
-                              }
-                          }
-                      }
                   }
 
                   Column(
@@ -226,6 +213,28 @@ jobs:
                           .background(Color.Black.copy(alpha = 0.62f))
                           .padding(horizontal = 14.dp, vertical = 8.dp),
                   ) {
+                      if (lensEnabled) {
+                          Row(
+                              Modifier
+                                  .fillMaxWidth()
+                                  .padding(bottom = 2.dp),
+                              horizontalArrangement = Arrangement.SpaceEvenly,
+                              verticalAlignment = Alignment.CenterVertically,
+                          ) {
+                              listOf(2f, 4f, 8f, 16f, 32f).forEach { z ->
+                                  TextButton(
+                                      onClick = { lensZoom = z },
+                                      modifier = Modifier.weight(1f),
+                                  ) {
+                                      Text(
+                                          "${z.toInt()}×",
+                                          color = if (lensZoom == z) Color.White else Color.Gray,
+                                          fontWeight = if (lensZoom == z) FontWeight.Bold else FontWeight.Normal,
+                                      )
+                                  }
+                              }
+                          }
+                      }
                       val max = duration.coerceAtLeast(1L).toFloat()
                       Slider(
                           value = position.coerceAtMost(duration.coerceAtLeast(1L)).toFloat(),
@@ -241,7 +250,7 @@ jobs:
                           Text("${formatTime(position)} / ${formatTime(duration)}", color = Color.White, fontSize = 12.sp)
                           Row(verticalAlignment = Alignment.CenterVertically) {
                               TextButton(onClick = { lensEnabled = !lensEnabled }) {
-                                  Text(if (lensEnabled) "Lente OFF" else "Lente", color = Color.White)
+                                  Text(if (lensEnabled) "Lente ${lensZoom.toInt()}×" else "Lente", color = Color.White)
                               }
                               IconButton(onClick = onPrevious, enabled = hasPrevious) {
                                   Icon(Icons.Filled.SkipPrevious, "Precedente", tint = if (hasPrevious) Color.White else Color.Gray)
@@ -349,10 +358,211 @@ jobs:
 
           p.write_text(s)
 
+
+          gp = Path("app/src/main/java/com/osmus/gallery/ui/GridScreens.kt")
+          gs = gp.read_text()
+
+          old_header = '''    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Galleria", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "$totalCount elementi in ${albums.size} cartelle",
+                    color = Color(0xFF9A9A97), fontSize = 13.sp,
+                )
+            }
+            IconButton(onClick = onOpenTools) {
+                Icon(Icons.Filled.MovieCreation, contentDescription = "Crea clip animata")
+            }
+            IconButton(onClick = onOpenDuplicates) {
+                Icon(Icons.Filled.ContentCopy, contentDescription = "Cerca duplicati")
+            }
+        }
+
+        LazyVerticalGrid('''
+
+          new_header = '''    var albumSortMenu by remember { mutableStateOf(false) }
+    var albumSort by remember { mutableStateOf("recenti") }
+
+    val shownAlbums = when (albumSort) {
+        "nome_az" -> albums.sortedBy { it.name.lowercase() }
+        "nome_za" -> albums.sortedByDescending { it.name.lowercase() }
+        "vecchie" -> albums.sortedBy { it.newest }
+        "piu" -> albums.sortedByDescending { it.count }
+        "meno" -> albums.sortedBy { it.count }
+        else -> albums.sortedByDescending { it.newest }
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Galleria", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "$totalCount elementi in ${albums.size} cartelle",
+                    color = Color(0xFF9A9A97), fontSize = 13.sp,
+                )
+            }
+            Box {
+                IconButton(onClick = { albumSortMenu = true }) {
+                    Icon(Icons.Filled.Sort, contentDescription = "Ordina cartelle")
+                }
+                DropdownMenu(expanded = albumSortMenu, onDismissRequest = { albumSortMenu = false }) {
+                    listOf(
+                        "recenti" to "Più recenti",
+                        "vecchie" to "Meno recenti",
+                        "nome_az" to "Nome A→Z",
+                        "nome_za" to "Nome Z→A",
+                        "piu" to "Più elementi",
+                        "meno" to "Meno elementi",
+                    ).forEach { (key, label) ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    label,
+                                    fontWeight = if (albumSort == key) FontWeight.Bold else FontWeight.Normal,
+                                )
+                            },
+                            onClick = {
+                                albumSort = key
+                                albumSortMenu = false
+                            },
+                        )
+                    }
+                }
+            }
+            IconButton(onClick = onOpenTools) {
+                Icon(Icons.Filled.MovieCreation, contentDescription = "Crea clip animata")
+            }
+            IconButton(onClick = onOpenDuplicates) {
+                Icon(Icons.Filled.ContentCopy, contentDescription = "Cerca duplicati")
+            }
+        }
+
+        LazyVerticalGrid('''
+
+          if old_header not in gs:
+              raise SystemExit("Albums header block not found")
+          gs = gs.replace(old_header, new_header, 1)
+          gs = gs.replace('items(albums, key = { it.bucketId }) { album ->', 'items(shownAlbums, key = { it.bucketId }) { album ->', 1)
+          gs = gs.replace('title = "Nascosti"', 'title = "VAULT"', 1)
+          gs = gs.replace('Icon(Icons.Filled.VisibilityOff, "Nascosti", tint = Color.White)', 'Icon(Icons.Filled.VisibilityOff, "VAULT", tint = Color.White)', 1)
+
+          old_tile = '''    var menuOpen by remember { mutableStateOf(false) }
+    Column(Modifier.clip(RoundedCornerShape(10.dp)).combinedClickable(onClick = onClick)) {
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(1f).background(Color(0xFF1A1B1D))
+        ) {
+            if (cover != null) {
+                AsyncImage(
+                    model = cover, contentDescription = title, contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            if (badgeIcon != null) {
+                Box(Modifier.align(Alignment.Center)) { badgeIcon() }
+            }
+            if (menuItems.isNotEmpty()) {
+                Box(Modifier.align(Alignment.TopEnd)) {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Filled.MoreVert, "Menu", tint = Color.White)
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        menuItems.forEach { (label, action) ->
+                            DropdownMenuItem(text = { Text(label) }, onClick = {
+                                menuOpen = false
+                                action()
+                            })
+                        }
+                    }
+                }
+            }
+        }
+        Text(title, maxLines = 1, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(start = 4.dp, top = 6.dp))
+        Text("$count", fontSize = 11.sp, color = Color(0xFF8A8A88),
+            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
+    }'''
+
+          new_tile = '''    var menuOpen by remember { mutableStateOf(false) }
+    Column(
+        Modifier
+            .padding(3.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF18191B))
+            .combinedClickable(onClick = onClick)
+            .padding(bottom = 9.dp)
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(1.08f)
+                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                .background(Color(0xFF242528))
+        ) {
+            if (cover != null) {
+                AsyncImage(
+                    model = cover,
+                    contentDescription = title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            if (badgeIcon != null) {
+                Box(
+                    Modifier
+                        .align(Alignment.Center)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Color.Black.copy(alpha = 0.45f))
+                        .padding(12.dp)
+                ) { badgeIcon() }
+            }
+            if (menuItems.isNotEmpty()) {
+                Box(Modifier.align(Alignment.TopEnd)) {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Filled.MoreVert, "Menu", tint = Color.White)
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        menuItems.forEach { (label, action) ->
+                            DropdownMenuItem(text = { Text(label) }, onClick = {
+                                menuOpen = false
+                                action()
+                            })
+                        }
+                    }
+                }
+            }
+        }
+        Text(
+            title,
+            maxLines = 1,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 9.dp),
+        )
+        Text(
+            if (count == 1) "1 elemento" else "$count elementi",
+            fontSize = 11.sp,
+            color = Color(0xFF9A9A97),
+            modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 2.dp),
+        )
+    }'''
+
+          if old_tile not in gs:
+              raise SystemExit("AlbumTile block not found")
+          gs = gs.replace(old_tile, new_tile, 1)
+          gp.write_text(gs)
+
+
           g = Path("app/build.gradle.kts")
           t = g.read_text()
-          t = re.sub(r'versionCode\s*=\s*\d+', 'versionCode = 10', t)
-          t = re.sub(r'versionName\s*=\s*"[^"]+"', 'versionName = "0.10.6"', t)
+          t = re.sub(r'versionCode\s*=\s*\d+', 'versionCode = 11', t)
+          t = re.sub(r'versionName\s*=\s*"[^"]+"', 'versionName = "0.10.7"', t)
           g.write_text(t)
           PY
 
@@ -370,6 +580,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OsmusGallery-v0.10.6-debug-apk
+          name: OsmusGallery-v0.10.7-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

@@ -22,6 +22,7 @@ jobs:
           sed -i 's/import androidx.compose.ui.input.pointer.calculatePan/import androidx.compose.foundation.gestures.calculatePan/' app/src/main/java/com/osmus/gallery/ui/ViewerScreen.kt
           sed -i 's/import androidx.compose.ui.input.pointer.calculateZoom/import androidx.compose.foundation.gestures.calculateZoom/' app/src/main/java/com/osmus/gallery/ui/ViewerScreen.kt
           sed -i '/vm.onHideFinished(success)/d' app/src/main/java/com/osmus/gallery/MainActivity.kt
+          sed -i 's/\.pointerInput(item.id, scale)/.pointerInput(item.id)/' app/src/main/java/com/osmus/gallery/ui/ViewerScreen.kt
 
       - uses: actions/setup-java@v4
         with:
@@ -37,6 +38,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OsmusGallery-v0.9.5-debug-apk
+          name: OsmusGallery-v0.9.6-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

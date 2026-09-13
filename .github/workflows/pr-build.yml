@@ -13,7 +13,8 @@ jobs:
       - name: Extract project
         shell: bash
         run: |
-          unzip -q OsmusGallery_v0.4_vault_guard.zip -d rebuilt
+          rm -rf rebuilt
+          unzip -q OsmusGallery_v0.5_media_player.zip -d rebuilt
           cp -a rebuilt/. .
 
       - uses: actions/setup-java@v4
@@ -30,6 +31,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OsmusGallery-debug-apk
+          name: OsmusGallery-v0.5-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

@@ -10,12 +10,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Extract project
+      - name: Extract base project
         shell: bash
         run: |
           rm -rf rebuilt
-          unzip -q OsmusGallery_v0.9_clip_creator.zip -d rebuilt
+          unzip -q OsmusGallery_v0.5.1_compilefix.zip -d rebuilt
           cp -a rebuilt/. .
+
+      - name: Rebuild and apply v0.9 patch
+        shell: bash
+        run: |
+          cat ci/v09_chunk_00.b64 ci/v09_chunk_01.b64 ci/v09_chunk_02.b64 | base64 -d > /tmp/v09_patch.zip
+          unzip -t /tmp/v09_patch.zip
+          unzip -qo /tmp/v09_patch.zip -d .
 
       - uses: actions/setup-java@v4
         with:

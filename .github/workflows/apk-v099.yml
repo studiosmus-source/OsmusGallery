@@ -1,0 +1,39 @@
+name: APK Build v099
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rebuild source
+        shell: bash
+        run: |
+          cat ci/v09_exact_00.bin ci/v09_exact_01.bin ci/v09_exact_02.bin ci/v09_exact_03.bin > /tmp/OsmusGallery_v0.9.zip
+          rm -rf project
+          mkdir project
+          unzip -q /tmp/OsmusGallery_v0.9.zip "app/*" "build.gradle.kts" "settings.gradle.kts" "gradle.properties" "gradle/*" -d project
+          cp -a project/. .
+          sed -i 's/import androidx.compose.ui.input.pointer.calculatePan/import androidx.compose.foundation.gestures.calculatePan/' app/src/main/java/com/osmus/gallery/ui/ViewerScreen.kt
+          sed -i 's/import androidx.compose.ui.input.pointer.calculateZoom/import androidx.compose.foundation.gestures.calculateZoom/' app/src/main/java/com/osmus/gallery/ui/ViewerScreen.kt
+          sed -i '/vm.onHideFinished(success)/d' app/src/main/java/com/osmus/gallery/MainActivity.kt
+          sed -i 's/\.pointerInput(item.id, scale)/.pointerInput(item.id)/' app/src/main/java/com/osmus/gallery/ui/ViewerScreen.kt
+          sed -i 's/coerceIn(1f, 16f)/coerceIn(1f, 32f)/' app/src/main/java/com/osmus/gallery/ui/ViewerScreen.kt
+          sed -i 's/"Nascosti"/"VAULT"/g; s/Cassaforte/VAULT/g' app/src/main/java/com/osmus/gallery/ui/GridScreens.kt app/src/main/java/com/osmus/gallery/MainActivity.kt
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build debug APK
+        run: gradle :app:assembleDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OsmusGallery-v0.9.9-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
